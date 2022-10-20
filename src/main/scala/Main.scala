@@ -44,10 +44,10 @@ object Parser:
   /** parse exactly the string s */
   def parse_string(input: Input, s: String): ParseResult[String] = {
     val current_string = input.current(s.length())
-    val len = input.data.length() - 1
+    val len = input.data.length() - s.length()
     if (current_string == s)
       ParseSucceed(input.data.substring(input.offset, input.offset + s.length()), input.next(s.length()))
-    else if (input.offset == len)
+    else if (input.offset >= len)
       ParseFailure(input)
     else
       parse_string(input.next(1), s)
