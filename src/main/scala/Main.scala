@@ -5,7 +5,11 @@ import Parser.createParser
 // Common interface for parsers
 trait Parser[A]:
   /** parse with this and then parse with pb. */
-  def ~[B](pb: => Parser[B]): Parser[(A, B)] = ???
+  def ~[B](pb: => Parser[B]): Parser[(A, B)] =
+      for {
+        a <- this
+        b <- pb
+      } yield (a, b)
   /** parse with this, or parse with pb if this fails. */
   def |[B](pb: Parser[B]): Parser[Either[A, B]] = ???
   /** try to parse with this. It does not fail if the parsing did not work. */
@@ -106,3 +110,5 @@ def main(): Unit =
   println(Parser.string("B").parse("ABC"))
 
   println(Parser.string("Y").parse("ABC"))
+
+  println((Parser.string("A") ~ Parser.string("B")).parse("ABC"))
