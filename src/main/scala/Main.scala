@@ -1,6 +1,7 @@
 import scala.annotation.tailrec
 import ParseResult.*
 import Parser.createParser
+import scala.util.matching.Regex
 
 // Common interface for parsers
 trait Parser[A]:
@@ -11,9 +12,18 @@ trait Parser[A]:
         b <- pb
       } yield (a, b)
   /** parse with this, or parse with pb if this fails. */
-  def |[B](pb: Parser[B]): Parser[Either[A, B]] = ???
+  def |[B](pb: Parser[B]): Parser[Either[A, B]] =
+  /** createParser :
+   * if this.parse(input) -> succeed  then return ParseSucceed(Left(value))
+   * else pb.parse(input) -> succeed then return ParseSucceed(Right(value))
+   *                      -> fail then return ParseFailure(input)*/
   /** try to parse with this. It does not fail if the parsing did not work. */
-  def ? : Parser[Option[A]] = ???
+  def ? : Parser[Option[A]] =
+    Parser.createParser(input => {
+      this.parse(input) match
+        case ParseResult.ParseSucceed(value, input) => ParseResult.ParseSucceed(Option(value), input)
+        case ParseResult.ParseFailure(input) => ParseResult.ParseSucceed(Option.empty, input)
+    })
   /** use this to parse multiple times, until it does not apply. */
   def repeat: Parser[List[A]] = ???
   /** convert the value output by the parser. */
@@ -29,7 +39,7 @@ object Parser:
   /** parse an integer. */
   @tailrec
   def parse_integer(input : Input): ParseResult[Int] = {
-    val numeric = """([0-9]+)""".r
+    val numeric = """([0-9])""".r
     val current_string = input.current(1)
     current_string match {
       case numeric(current_string)=>  parse_integer(input.next(1))
@@ -60,7 +70,24 @@ object Parser:
   def string(s: String): Parser[String] = createParser(input => parse_string(input, s))
 
   /** parse according to a regular expression */
-  def regex(r: String): Parser[String] = createParser(???)
+/** parse exactly the string s */
+
+
+  def parserRegex(input: Input, reg: String): ParseResult[String] = {
+    val regex: Regex = reg.r /** create a regex from the input string -> must be [$-$] */
+    val extractRegex = (regex findAllIn input.data).mkString("")
+    if (extractRegex.isEmpty)
+      ParseFailure(input)
+    else if (extractRegex.length == input.data.length)
+      ParseSucceed(extractRegex, input.copy(offset = input.data.length - 1))
+    else
+      ParseSucceed(extractRegex, input.copy(offset = extractRegex.length))
+  }
+  /** parse according to a regular expression */
+  def regex(reg: String): Parser[String] = {
+
+    createParser(input => parserRegex(input, reg))
+  }
 
 // Result of parse
 enum ParseResult[+A]:
@@ -103,6 +130,9 @@ def main(): Unit =
 
   println(Parser.int.parse("12-a"))
 
+  println("\n")
+
+
   println(Parser.string("AB").parse("ABC"))
 
   println(Parser.string("AC").parse("ABC"))
@@ -111,4 +141,13 @@ def main(): Unit =
 
   println(Parser.string("Y").parse("ABC"))
 
-  println((Parser.string("A") ~ Parser.string("B")).parse("ABC"))
+  println("\n")
+
+
+  println(Parser.regex("[A-Z]").parse("A12B"))
+
+  println(Parser.regex("[A-Z]").parse("12"))
+
+  println(Parser.regex("[1-9]").parse("A12B"))
+
+
