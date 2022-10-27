@@ -5,6 +5,7 @@ import scala.util.matching.Regex
 
 // Common interface for parsers
 trait Parser[A]:
+  self =>
   /** parse with this and then parse with pb. */
   def ~[B](pb: => Parser[B]): Parser[(A, B)] =
       for {
@@ -12,7 +13,7 @@ trait Parser[A]:
         b <- pb
       } yield (a, b)
   /** parse with this, or parse with pb if this fails. */
-  def |[B](pb: Parser[B]): Parser[Either[A, B]] =
+  def |[B](pb: Parser[B]): Parser[Either[A, B]] = ???
   /** createParser :
    * if this.parse(input) -> succeed  then return ParseSucceed(Left(value))
    * else pb.parse(input) -> succeed then return ParseSucceed(Right(value))
@@ -27,8 +28,12 @@ trait Parser[A]:
   /** use this to parse multiple times, until it does not apply. */
   def repeat: Parser[List[A]] = ???
   /** convert the value output by the parser. */
-  def map[B](f: A => B): Parser[B] = ???
-  def flatMap[B](f: A => Parser[B]): Parser[B] = ???
+  def map[B](f: A => B): Parser[B] = Parser.createParser(input => self.parse(input).map(f))
+  def flatMap[B](f: A => Parser[B]): Parser[B] = Parser.createParser {
+    input =>
+      val result: ParseResult[A] = self.parse(input)
+      result.flatMap(r => f(a).parse())
+  }
 
   final def parse(s: String): ParseResult[A] = parse(Input(s))
   def parse(input: Input): ParseResult[A]
@@ -56,6 +61,7 @@ object Parser:
   def int: Parser[Int] = createParser(parse_integer)
 
   /** parse exactly the string s */
+  @tailrec
   def parse_string(input: Input, s: String): ParseResult[String] = {
     val current_string = input.current(s.length())
     val len = input.data.length() - s.length()
@@ -94,8 +100,14 @@ enum ParseResult[+A]:
   case ParseFailure(onInput: Input) extends ParseResult[Nothing]
   case ParseSucceed(value: A, remainingInput: Input) extends ParseResult[A]
 
-  def map[B](f: A => B): ParseResult[B] = ???
-  def flatMap[B](f: A => ParseResult[B]): ParseResult[B] = ???
+  def map[B](f: A => B): ParseResult[B] =
+    this match
+      case ParseSucceed(v, i) => ParseSucceed(f(v), i)
+      case ParseFailure(i) => ParseFailure(i)
+  def flatMap[B](f: A => ParseResult[B]): ParseResult[B] =
+    this match
+      case ParseSucceed(v, i) => f(v)
+      case ParseFailure(i) => ParseFailure(i)
 // this class move 1 by 1
 
 
@@ -144,7 +156,7 @@ def main(): Unit =
   println("\n")
 
 
-  println(Parser.regex("[A-Z]").parse("A12B"))
+  println(Parser.regex("A+[0-9]+").parse("A12B"))
 
   println(Parser.regex("[A-Z]").parse("12"))
 
